@@ -8,6 +8,9 @@ KiOy - KingOyster
 BlOy - BlueOyster
 PiOy - PinkOyster
 LiMa - Lionsmane
+InVe - Inventory
+StOr - Storage
+MiSc - Miscellaneous
 
 BARCODE FORMAT:
 Item: XXXX_DD_MM_YY_GX_XXXX (e.g. PiPi_01_05_24_G1_0001)

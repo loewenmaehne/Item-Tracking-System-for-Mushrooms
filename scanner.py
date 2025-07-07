@@ -14,7 +14,10 @@ ITEM_CODES = {
     "KiOy": "KingOyster",
     "BlOy": "BlueOyster",
     "PiOy": "PinkOyster",
-    "LiMa": "Lionsmane"
+    "LiMa": "Lionsmane",
+    "InVe": "Inventory",
+    "StOr": "Storage",
+    "MiSc": "Miscellaneous"
 }
 
 # Helper function to detect item barcodes
