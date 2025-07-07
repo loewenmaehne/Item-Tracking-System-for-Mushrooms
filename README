@@ -1,31 +1,33 @@
 Item Tracking System
 By DeepSeek
 
-PYTHON INSTALL (WINDOWS):
+ITEM TYPES (Barcode Prefixes):
+PiPi - PioPino
+ChNu - Chestnut
+KiOy - KingOyster
+BlOy - BlueOyster
+PiOy - PinkOyster
+LiMa - Lionsmane
+
+BARCODE FORMAT:
+Item: XXXX_DD_MM_YY_GX_XXXX (e.g. PiPi_01_05_24_G1_0001)
+
+PYTHON SETUP (Windows):
 1. Download Python 3 from python.org/downloads
-2. Run installer
-3. CHECK "Add Python to PATH" (important!)
-4. Click "Install Now"
-5. Verify in Command Prompt:
+2. Install with "Add Python to PATH" checked
+3. Verify installation:
    python --version
 
 USAGE:
-1. Place scanner.py in your preferred folder
-2. Open Command Prompt (Win+R, type cmd)
-3. Navigate to folder:
-   cd path\to\folder
-4. Run:
-   python scanner.py
+1. Place scanner.py in desired folder
+2. Open Command Prompt in that folder
+3. Run: python scanner.py
 
-KEY COMMANDS:
-1 - Check IN items
-2 - Check OUT items
-3 - Move items
-4 - Register locations
-7 - Create batches
-Type 'finish' to exit scanning mode
+BASIC COMMANDS:
+1 - Check IN  2 - Check OUT
+3 - Move items  4 - Add locations
+7 - Create batch 9 - Exit
+Type 'finish' to end scanning
 
 DATA:
-- Local SQLite database: item_tracking.db
-- Barcode format: XXXX_DD_MM_YY_GX (batch)
-                  XXXX_DD_MM_YY_GX_XXXX (item)
+- Stores locally in item_tracking.db
