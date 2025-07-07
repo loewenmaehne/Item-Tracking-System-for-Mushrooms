@@ -1,0 +1,31 @@
+Item Tracking System
+By DeepSeek
+
+PYTHON INSTALL (WINDOWS):
+1. Download Python 3 from python.org/downloads
+2. Run installer
+3. CHECK "Add Python to PATH" (important!)
+4. Click "Install Now"
+5. Verify in Command Prompt:
+   python --version
+
+USAGE:
+1. Place scanner.py in your preferred folder
+2. Open Command Prompt (Win+R, type cmd)
+3. Navigate to folder:
+   cd path\to\folder
+4. Run:
+   python scanner.py
+
+KEY COMMANDS:
+1 - Check IN items
+2 - Check OUT items
+3 - Move items
+4 - Register locations
+7 - Create batches
+Type 'finish' to exit scanning mode
+
+DATA:
+- Local SQLite database: item_tracking.db
+- Barcode format: XXXX_DD_MM_YY_GX (batch)
+                  XXXX_DD_MM_YY_GX_XXXX (item)
