@@ -2,23 +2,52 @@ import sqlite3
 import datetime
 import time
 import re
+import os
+import shutil
 from collections import defaultdict
 
 # Local data storage
 DB_NAME = "item_tracking.db"
 
-# Item Type Translation
-ITEM_CODES = {
-    "PiPi": "PioPino",
-    "ChNu": "Chestnut",
-    "KiOy": "KingOyster",
-    "BlOy": "BlueOyster",
-    "PiOy": "PinkOyster",
-    "LiMa": "Lionsmane",
-    "InVe": "Inventory",
-    "StOr": "Storage",
-    "MiSc": "Miscellaneous"
+# Item Type Translation (initial values)
+INITIAL_ITEM_CODES = {
+    "PIPI": "PioPino",
+    "CHNU": "Chestnut",
+    "KIOY": "KingOyster",
+    "BLOY": "BlueOyster",
+    "PIOY": "PinkOyster",
+    "LIMA": "Lionsmane",
+    "INVE": "Inventory",
+    "STOR": "Storage",
+    "MISC": "Miscellaneous"
 }
+
+# ===== TASK 1: DATABASE BACKUP =====
+def backup_database():
+    """Backup database on program start"""
+    backup_dir = "backup"
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    
+    now = datetime.datetime.now()
+    timestamp = now.strftime("%S_%M_%H_%d_%m_%y")
+    backup_name = f"{timestamp}.db"
+    backup_path = os.path.join(backup_dir, backup_name)
+    
+    try:
+        shutil.copyfile(DB_NAME, backup_path)
+        print(f"Database backed up to: {backup_path}")
+    except Exception as e:
+        print(f"Backup failed: {e}")
+
+# ===== TASK 3: VALIDATION FUNCTIONS =====
+def is_alphanumeric(input_str):
+    """Check if input is alphanumeric"""
+    return input_str.isalnum()
+
+def to_upper_alphanumeric(input_str):
+    """Convert to uppercase and remove non-alphanumeric characters"""
+    return ''.join(filter(str.isalnum, input_str)).upper()
 
 # Helper function to detect item barcodes
 def looks_like_item_barcode(barcode):
@@ -88,6 +117,18 @@ def init_database():
                  scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                  status TEXT)''')
     
+    # Table for item codes
+    c.execute('''CREATE TABLE IF NOT EXISTS item_codes
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 code TEXT UNIQUE,
+                 name TEXT)''')
+    
+    # Insert initial item codes if table is empty
+    c.execute("SELECT COUNT(*) FROM item_codes")
+    if c.fetchone()[0] == 0:
+        for code, name in INITIAL_ITEM_CODES.items():
+            c.execute("INSERT INTO item_codes (code, name) VALUES (?, ?)", (code, name))
+    
     # Indexes for performance
     c.execute("CREATE INDEX IF NOT EXISTS idx_batch_barcode ON batch_scans (batch_barcode)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_full_barcode ON items (full_barcode)")
@@ -98,6 +139,19 @@ def init_database():
     
     conn.commit()
     conn.close()
+
+def get_item_name(code):
+    """Get item name from code using database"""
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    c = conn.cursor()
+    try:
+        c.execute("SELECT name FROM item_codes WHERE code = ?", (code,))
+        result = c.fetchone()
+        return result[0] if result else "Unknown"
+    except:
+        return "Unknown"
+    finally:
+        conn.close()
 
 def parse_barcode(barcode, is_batch=False):
     """Parse barcode in format XXXX_DD_MM_YY_GX (batch) or XXXX_DD_MM_YY_GX_XXXX (item)"""
@@ -122,8 +176,8 @@ def parse_barcode(barcode, is_batch=False):
         full_year = 2000 + int(year) if int(year) < 100 else int(year)
         created_date = f"{day}.{month}.{full_year}"
         
-        # Item Type translation
-        item_type = ITEM_CODES.get(item_code, "Unknown")
+        # Item Type translation from database
+        item_type = get_item_name(item_code)
         
         return {
             "item_type": item_type,
@@ -282,16 +336,28 @@ def show_last_scan(parsed_data, status):
     print(f"Barcode:   {parsed_data['full_barcode']}")
     print("="*50)
 
+# ===== TASK 3: LOCATION VALIDATION =====
 def register_location(barcode, location_name):
-    """Register new location"""
+    """Register new location with alphanumeric validation"""
+    # Clean and validate barcode
+    clean_barcode = to_upper_alphanumeric(barcode)
+    if not clean_barcode:
+        print("Invalid location barcode: Must contain alphanumeric characters")
+        return False
+        
+    # Validate location name
+    if not location_name.strip():
+        print("Location name cannot be empty")
+        return False
+        
     conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
     
     try:
-        c.execute('''INSERT INTO locations 
+        c.execute('''INSERT OR REPLACE INTO locations 
                     (barcode, location_name)
                     VALUES (?, ?)''',
-                (barcode, location_name))
+                (clean_barcode, location_name))
         
         conn.commit()
         return True
@@ -303,6 +369,9 @@ def register_location(barcode, location_name):
 
 def move_item_to_location(item_barcode, location_barcode, max_retries=3, retry_delay=0.2):
     """Move item to location with retry on lock"""
+    # Clean location barcode
+    clean_location_barcode = to_upper_alphanumeric(location_barcode)
+    
     retries = 0
     while retries < max_retries:
         conn = None
@@ -311,7 +380,7 @@ def move_item_to_location(item_barcode, location_barcode, max_retries=3, retry_d
             c = conn.cursor()
             
             # Check if location exists
-            c.execute("SELECT 1 FROM locations WHERE barcode = ?", (location_barcode,))
+            c.execute("SELECT 1 FROM locations WHERE barcode = ?", (clean_location_barcode,))
             if not c.fetchone():
                 print("Location not registered! Please register first.")
                 return False
@@ -348,7 +417,20 @@ def move_item_to_location(item_barcode, location_barcode, max_retries=3, retry_d
             c.execute('''INSERT INTO item_locations 
                         (item_id, location_barcode)
                         VALUES (?, ?)''',
-                    (item_id, location_barcode))
+                    (item_id, clean_location_barcode))
+            
+            # Log as IN scan
+            parsed = parse_barcode(item_barcode)
+            if parsed:
+                c.execute('''INSERT INTO item_scans 
+                            (barcode, item_type, generation, created_date, status)
+                            VALUES (?, ?, ?, ?, ?)''',
+                        (item_barcode, 
+                         parsed['item_type'], 
+                         parsed['generation'], 
+                         parsed['created_date'], 
+                         'IN'))
+            
             conn.commit()
             return True
         except sqlite3.OperationalError as e:
@@ -425,6 +507,9 @@ def generate_inventory_report():
 
 def generate_detailed_report(item_type=None, generation=None, location_barcode=None, date=None):
     """Generate detailed report with filtering options - shows latest status per item"""
+    # Initialize location display name
+    loc_display = location_barcode if location_barcode else None
+    
     conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
     
@@ -435,7 +520,7 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
                     i.item_type,
                     i.generation,
                     i.created_date,
-                    MAX(s.scan_time) as latest_scan_time,
+                    s.scan_time,
                     i.current_status,
                     COALESCE(n.note, '') as note,
                     COALESCE(l.location_name, 'No location') as location_name
@@ -468,13 +553,19 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
             conditions.append("i.generation = ?")
             params.append(generation)
         if location_barcode:
-            # First get location name for display
-            c.execute("SELECT location_name FROM locations WHERE barcode = ?", (location_barcode,))
-            loc_name = c.fetchone()
-            loc_name = loc_name[0] if loc_name else location_barcode
-            
-            conditions.append("l.location_name = ?")
-            params.append(loc_name)
+            clean_location_barcode = to_upper_alphanumeric(location_barcode)
+            if clean_location_barcode:
+                # Try to get location name
+                c.execute("SELECT location_name FROM locations WHERE barcode = ?", (clean_location_barcode,))
+                result = c.fetchone()
+                if result:
+                    loc_display = result[0]
+                    conditions.append("l.location_name = ?")
+                    params.append(loc_display)
+                else:
+                    loc_display = f"Not Found: {clean_location_barcode}"
+            else:
+                loc_display = f"Invalid: {location_barcode}"
         if date:
             conditions.append("i.created_date = ?")
             params.append(date)
@@ -482,7 +573,6 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
-        query += " GROUP BY i.full_barcode"
         c.execute(query, params)
         results = c.fetchall()
         
@@ -494,7 +584,7 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
         if generation:
             print(f"Filter: Generation = {generation}")
         if location_barcode:
-            print(f"Filter: Location = {loc_name}")
+            print(f"Filter: Location = {loc_display}")
         if date:
             print(f"Filter: Created Date = {date}")
         print("="*120)
@@ -502,8 +592,19 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
         print("-"*120)
         
         for row in results:
-            scan_time = datetime.datetime.strptime(row[4], "%Y-%m-%d %H:%M:%S").strftime("%d.%m.%Y %H:%M") if row[4] else "N/A"
-            print(f"{scan_time:<19} {row[1]:<12} {row[2]:<5} {row[5]:<8} {row[3]:<12} {row[7]:<15} {row[0]:<20} {row[6]:<30}")
+            scan_time = row[4]
+            if scan_time:
+                try:
+                    # Convert to datetime object if it's a string
+                    if isinstance(scan_time, str):
+                        scan_time = datetime.datetime.strptime(scan_time, "%Y-%m-%d %H:%M:%S")
+                    formatted_time = scan_time.strftime("%d.%m.%Y %H:%M")
+                except:
+                    formatted_time = "N/A"
+            else:
+                formatted_time = "N/A"
+                
+            print(f"{formatted_time:<19} {row[1]:<12} {row[2]:<5} {row[5]:<8} {row[3]:<12} {row[7]:<15} {row[0]:<20} {row[6]:<30}")
         
         print(f"\nTotal entries: {len(results)}")
         print("="*120)
@@ -545,7 +646,7 @@ def create_batch():
     print("\nBATCH CREATION MODE")
     
     # FIRST: Scan location barcode
-    location_barcode = input("Scan location barcode for this batch: ").strip()
+    location_barcode = input("Scan location barcode for this batch: ").strip().upper()
     if not location_barcode:
         print("Location is required for batch creation!")
         return
@@ -649,82 +750,15 @@ def create_batch():
     finally:
         conn.close()
 
-def scan_session(status):
-    """Process multiple scans in a session with location validation"""
-    print(f"\n{' CHECK IN ' if status == 'IN' else ' CHECK OUT '} MODE - Scan items (type 'finish' to exit)")
-    
-    # For check-in, require location; for check-out, location is optional
-    location_barcode = None
-    if status == 'IN':
-        location_barcode = input("\nScan location barcode: ").strip()
-        if not location_barcode:
-            print("Location is required for check-in!")
-            return
-        
-        # Check for item barcodes scanned as locations
-        if looks_like_item_barcode(location_barcode):
-            print("Error: Scanned barcode appears to be an ITEM barcode.")
-            print("Please scan a LOCATION barcode instead.")
-            return
-    
-    # Validate location exists if provided
-    if location_barcode:
-        conn = sqlite3.connect(DB_NAME, timeout=10)
-        c = conn.cursor()
-        try:
-            c.execute("SELECT 1 FROM locations WHERE barcode = ?", (location_barcode,))
-            if not c.fetchone():
-                print("Location not registered! Please register first.")
-                conn.close()
-                return
-        finally:
-            conn.close()
-    
-    while True:
-        barcode = input("\nScan item barcode: ").strip()
-        
-        if barcode.lower() == "finish":
-            break
-            
-        # Parse as individual barcode (6 parts)
-        parsed = parse_barcode(barcode)
-        if not parsed:
-            print("Invalid barcode! Expected format: XXXX_DD_MM_YY_GX_XXXX")
-            continue
-        
-        # Ensure item exists in database
-        if not ensure_item_exists(
-            barcode, 
-            parsed['item_type'], 
-            parsed['generation'], 
-            parsed['created_date']
-        ):
-            print("Failed to ensure item exists in database")
-            continue
-        
-        # Update item status
-        if update_item_status(barcode, status):
-            print(f"Item status updated to {status}")
-        
-        # For check-in, move to location
-        if status == 'IN' and location_barcode:
-            if move_item_to_location(parsed["full_barcode"], location_barcode):
-                print(f"Item moved to location {location_barcode}")
-        
-        # Log the scan
-        if log_scan(parsed, status):
-            show_last_scan(parsed, status)
-            generate_inventory_report()
-        else:
-            print("Error saving scan!")
-
+# ===== TASK 4: ADDED FINISH NOTE TO PROMPT =====
 def move_item_session():
     """Move items to new location using single DB connection"""
-    print("\nMOVE ITEMS MODE - Scan items (type 'finish' to exit)")
-    print("First scan TARGET location barcode (e.g. 'GROWTENT1')")
+    print("\nMOVE ITEMS MODE - Scan items")
+    print("First scan TARGET location barcode (e.g. 'TENT1')")
+    print("Scan/type 'finish' to return to menu")
     
     # Scan target location
-    target_location = input("\nScan target location barcode: ").strip()
+    target_location = input("\nScan target location barcode: ").strip().upper()
     if not target_location:
         print("No target location specified!")
         return
@@ -750,7 +784,7 @@ def move_item_session():
         print(f"Target location: {location_name}")
 
         while True:
-            barcode = input("\nScan item barcode: ").strip()
+            barcode = input("\nScan item barcode (or 'finish' to exit): ").strip()
             
             if barcode.lower() == "finish":
                 break
@@ -800,6 +834,14 @@ def move_item_session():
                             (item_id, location_barcode)
                             VALUES (?, ?)''',
                         (item_id, target_location))
+                
+                # Log as IN scan
+                c.execute('''INSERT INTO item_scans 
+                            (barcode, item_type, generation, created_date, status)
+                            VALUES (?, ?, ?, ?, ?)''',
+                        (barcode, parsed['item_type'], parsed['generation'], 
+                         parsed['created_date'], 'IN'))
+                
                 conn.commit()
                 print(f"✓ Item moved to {location_name}")
                 
@@ -816,14 +858,233 @@ def move_item_session():
     finally:
         conn.close()  # Ensure connection closes
 
+def list_locations():
+    """List all registered locations"""
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    c = conn.cursor()
+    
+    try:
+        c.execute("SELECT barcode, location_name FROM locations")
+        locations = c.fetchall()
+        
+        if not locations:
+            print("No locations registered yet!")
+            return
+            
+        print("\n" + "="*40)
+        print("REGISTERED LOCATIONS")
+        print("="*40)
+        print(f"{'Barcode':<15} {'Location Name':<25}")
+        print("-"*40)
+        for loc in locations:
+            print(f"{loc[0]:<15} {loc[1]:<25}")
+        print("="*40)
+    except Exception as e:
+        print(f"Error listing locations: {e}")
+    finally:
+        conn.close()
+
+def remove_location():
+    """Remove a location from the system"""
+    barcode = input("Scan location barcode to remove: ").strip().upper()
+    if not barcode:
+        print("No barcode provided!")
+        return
+        
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    try:
+        c = conn.cursor()
+        
+        # Check if location exists
+        c.execute("SELECT location_name FROM locations WHERE barcode = ?", (barcode,))
+        result = c.fetchone()
+        if not result:
+            print("Location not found!")
+            return
+            
+        location_name = result[0]
+        
+        # Check if location has assigned items
+        c.execute("SELECT COUNT(*) FROM item_locations WHERE location_barcode = ?", (barcode,))
+        count = c.fetchone()[0]
+        
+        if count > 0:
+            print(f"Cannot remove '{location_name}' - it has {count} items assigned!")
+            return
+            
+        # Delete location
+        c.execute("DELETE FROM locations WHERE barcode = ?", (barcode,))
+        conn.commit()
+        print(f"Location '{location_name}' removed successfully!")
+        
+    except Exception as e:
+        print(f"Error removing location: {e}")
+    finally:
+        conn.close()
+
+def list_item_codes():
+    """List all registered item codes"""
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    c = conn.cursor()
+    
+    try:
+        c.execute("SELECT code, name FROM item_codes")
+        codes = c.fetchall()
+        
+        if not codes:
+            print("No item codes registered yet!")
+            return
+            
+        print("\n" + "="*40)
+        print("REGISTERED ITEM CODES")
+        print("="*40)
+        print(f"{'Code':<10} {'Item Name':<25}")
+        print("-"*40)
+        for code in codes:
+            print(f"{code[0]:<10} {code[1]:<25}")
+        print("="*40)
+    except Exception as e:
+        print(f"Error listing item codes: {e}")
+    finally:
+        conn.close()
+
+# ===== TASK 3: ITEM CODE VALIDATION =====
+def add_or_update_item_code():
+    """Add or update an item code"""
+    print("\nADD/UPDATE ITEM CODE")
+    code = input("Item code (e.g. 'PIPI'): ").strip().upper()
+    name = input("Item name (e.g. 'Pio Pino'): ").strip()
+    
+    if not code or not name:
+        print("Both fields are required!")
+        return
+    
+    # Validate alphanumeric
+    if not is_alphanumeric(code):
+        print("Item code must be alphanumeric!")
+        return
+        
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    try:
+        c = conn.cursor()
+        
+        # Check if code exists
+        c.execute("SELECT 1 FROM item_codes WHERE code = ?", (code,))
+        exists = c.fetchone()
+        
+        if exists:
+            c.execute("UPDATE item_codes SET name = ? WHERE code = ?", (name, code))
+            action = "updated"
+        else:
+            c.execute("INSERT INTO item_codes (code, name) VALUES (?, ?)", (code, name))
+            action = "added"
+            
+        conn.commit()
+        print(f"Item code '{code}' successfully {action}!")
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        conn.close()
+
+def remove_item_code():
+    """Remove an item code from the system"""
+    code = input("Enter item code to remove: ").strip().upper()
+    if not code:
+        print("No code provided!")
+        return
+        
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    try:
+        c = conn.cursor()
+        
+        # Check if code exists
+        c.execute("SELECT name FROM item_codes WHERE code = ?", (code,))
+        result = c.fetchone()
+        if not result:
+            print("Item code not found!")
+            return
+            
+        name = result[0]
+        
+        # Check if code is used in any items
+        c.execute("SELECT COUNT(*) FROM items WHERE item_type = ?", (name,))
+        count = c.fetchone()[0]
+        
+        if count > 0:
+            print(f"Cannot remove '{code}' - it has {count} items associated with it!")
+            return
+            
+        # Delete code
+        c.execute("DELETE FROM item_codes WHERE code = ?", (code,))
+        conn.commit()
+        print(f"Item code '{code}' removed successfully!")
+        
+    except Exception as e:
+        print(f"Error removing item code: {e}")
+    finally:
+        conn.close()
+
+def manage_locations():
+    """Location management menu"""
+    while True:
+        print("\n" + "="*30)
+        print("LOCATION MANAGEMENT")
+        print("="*30)
+        print("1: Register new location")
+        print("2: List all locations")
+        print("3: Remove a location")
+        print("4: Back to main menu")
+        
+        choice = input("Select: ").strip()
+        
+        if choice == "1":
+            register_location_session()
+        elif choice == "2":
+            list_locations()
+        elif choice == "3":
+            remove_location()
+        elif choice == "4":
+            break
+        else:
+            print("Invalid selection!")
+
+def manage_item_codes():
+    """Item code management menu"""
+    while True:
+        print("\n" + "="*30)
+        print("ITEM CODE MANAGEMENT")
+        print("="*30)
+        print("1: List all item codes")
+        print("2: Add/Update item code")
+        print("3: Remove item code")
+        print("4: Back to main menu")
+        
+        choice = input("Select: ").strip()
+        
+        if choice == "1":
+            list_item_codes()
+        elif choice == "2":
+            add_or_update_item_code()
+        elif choice == "3":
+            remove_item_code()
+        elif choice == "4":
+            break
+        else:
+            print("Invalid selection!")
+
 def register_location_session():
-    """Register new location"""
+    """Register new location with validation"""
     print("\nREGISTER NEW LOCATION")
-    location_barcode = input("Location barcode: ").strip()
+    location_barcode = input("Location barcode: ").strip().upper()
     location_name = input("Location name (e.g. 'Shelf 1'): ").strip()
     
     if not location_barcode or not location_name:
         print("Invalid input!")
+        return
+        
+    # Validate alphanumeric
+    if not is_alphanumeric(location_barcode):
+        print("Location barcode must be alphanumeric!")
         return
         
     if register_location(location_barcode, location_name):
@@ -831,28 +1092,34 @@ def register_location_session():
     else:
         print("Error registering location!")
 
-def add_note_to_barcode():
-    """Add note to existing barcode"""
-    barcode = input("Scan barcode for note: ").strip()
+# ===== TASK 2: MULTIPLE NOTE ENTRY =====
+def add_notes_session():
+    """Add notes to multiple items continuously"""
+    print("\nADD NOTES MODE - Scan items (type 'finish' to exit)")
+    print("Scan/type 'finish' to return to menu")
     
-    conn = sqlite3.connect(DB_NAME, timeout=10)
-    c = conn.cursor()
-    
-    try:
+    while True:
+        barcode = input("\nScan barcode (or 'finish' to exit): ").strip()
+        if barcode.lower() == "finish":
+            break
+            
         # Check if barcode exists
-        c.execute("SELECT * FROM items WHERE full_barcode = ?", (barcode,))
-        if not c.fetchone():
-            print("Barcode not found!")
-            return
-    finally:
-        conn.close()
-    
-    note = input("Enter note: ").strip()
-    
-    if add_note(barcode, note):
-        print("Note added/updated successfully!")
-    else:
-        print("Error saving note!")
+        conn = sqlite3.connect(DB_NAME, timeout=10)
+        c = conn.cursor()
+        try:
+            c.execute("SELECT * FROM items WHERE full_barcode = ?", (barcode,))
+            if not c.fetchone():
+                print("Barcode not found! Skipping.")
+                continue
+        finally:
+            conn.close()
+        
+        note = input(f"Enter note for {barcode}: ").strip()
+        
+        if add_note(barcode, note):
+            print("Note added/updated successfully!")
+        else:
+            print("Error saving note!")
 
 def delete_all_out_items():
     """Delete all items with OUT status and their associated data"""
@@ -899,15 +1166,17 @@ def delete_all_out_items():
 
 def main():
     init_database()
+    # ===== TASK 1: BACKUP ON START =====
+    backup_database()
     
     while True:
         print("\n" + "="*30)
         print("ITEM TRACKING SYSTEM")
         print("="*30)
-        print("1: Check in items (IN)")
+        print("1: Check in / Move items")
         print("2: Check out items (OUT)")
-        print("3: Move items")
-        print("4: Register location")
+        print("3: Manage item codes")
+        print("4: Manage locations")
         print("5: Show detailed report")
         print("6: Add/edit note")
         print("7: Create new batch")
@@ -917,13 +1186,47 @@ def main():
         choice = input("Select: ")
         
         if choice == "1":
-            scan_session("IN")
-        elif choice == "2":
-            scan_session("OUT")
-        elif choice == "3":
             move_item_session()
+        elif choice == "2":
+            # For OUT, we don't need location
+            print("\nCHECK OUT MODE - Scan items (type 'finish' to exit)")
+            print("Scan/type 'finish' to return to menu")
+            while True:
+                barcode = input("\nScan item barcode (or 'finish' to exit): ").strip()
+                
+                if barcode.lower() == "finish":
+                    break
+                    
+                # Parse as individual barcode (6 parts)
+                parsed = parse_barcode(barcode)
+                if not parsed:
+                    print("Invalid barcode! Expected format: XXXX_DD_MM_YY_GX_XXXX")
+                    continue
+                
+                # Ensure item exists in database
+                if not ensure_item_exists(
+                    barcode, 
+                    parsed['item_type'], 
+                    parsed['generation'], 
+                    parsed['created_date']
+                ):
+                    print("Failed to ensure item exists in database")
+                    continue
+                
+                # Update item status to OUT
+                if update_item_status(barcode, 'OUT'):
+                    print("Item status updated to OUT")
+                
+                # Log the scan
+                if log_scan(parsed, 'OUT'):
+                    show_last_scan(parsed, 'OUT')
+                    generate_inventory_report()
+                else:
+                    print("Error saving scan!")
+        elif choice == "3":
+            manage_item_codes()
         elif choice == "4":
-            register_location_session()
+            manage_locations()
         elif choice == "5":
             print("\nFilter options (leave blank for all):")
             i_type = input("Item type: ").strip()
@@ -937,7 +1240,8 @@ def main():
                 date_filter if date_filter else None
             )
         elif choice == "6":
-            add_note_to_barcode()
+            # ===== TASK 2: UPDATED NOTE FUNCTION =====
+            add_notes_session()
         elif choice == "7":
             create_batch()
         elif choice == "8":

@@ -1,44 +1,36 @@
-# Copyright (c) 2025 Julian Zienert
-# SPDX-License-Identifier: MIT
+# 🍄 Mushroom Item Tracking System
 
-Item Tracking System for Mushrooms
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+*Copyright (c) 2025 Julian Zienert*  
+*Code generated with assistance from DeepSeek-R1 AI ([https://deepseek.com](https://deepseek.com))*
 
-Code generated with assistance from DeepSeek-R1 AI (https://deepseek.com) (MIT License)
+## 📦 Item Types (Barcode Prefixes)
+| Prefix | Mushroom Variety |
+|--------|------------------|
+| PiPi   | PioPino          |
+| ChNu   | Chestnut         |
+| KiOy   | KingOyster       |
+| BlOy   | BlueOyster       |
+| PiOy   | PinkOyster       |
+| LiMa   | Lionsmane        |
+| InVe   | Inventory        |
+| StOr   | Storage          |
+| MiSc   | Miscellaneous    |
 
-ITEM TYPES (Barcode Prefixes):
-PiPi - PioPino
-ChNu - Chestnut
-KiOy - KingOyster
-BlOy - BlueOyster
-PiOy - PinkOyster
-LiMa - Lionsmane
-InVe - Inventory
-StOr - Storage
-MiSc - Miscellaneous
+## 🔖 Barcode Format
+**Standard Format:**  
+`XXXX_DD_MM_YY_GX_XXXX`
 
-BARCODE FORMAT:
-Item: XXXX_DD_MM_YY_GX_XXXX (e.g. PiPi_08_07_25_G1_0001)
+**Example:**  
+`PIPI_08_07_25_G2_0001`  
+→ PioPino labeled on August 7, 2025 (Gen 2, Item 0001)
 
-PYTHON SETUP (Windows):
-1. Download Python 3 from python.org/downloads
-2. Install with "Add Python to PATH" checked
+## 💻 Installation (Windows)
+1. Download [Python 3](https://python.org/downloads)
+2. Install with **"Add Python to PATH"** checked
 3. Verify installation:
+   ```bash
    python --version
 
-USAGE:
-1. Place src/main.py in desired folder
-2. Open Command Prompt in that folder
-3. Run: python main.py
-
-BASIC COMMANDS:
-1 - Check IN  2 - Check OUT
-3 - Move items  4 - Add locations
-7 - Create batch 9 - Exit
-Type 'finish' to end scanning
-
-DATA:
-- Stores locally in item_tracking.db. Keep backuping this file!
-
-
-DISCLAIMER: The author shall not be held liable for any damages or misuse of this software.  
-Use at your own risk.  
+This tool is provided "as is" without guarantees.
+Use at your own risk. Verify data accuracy.
