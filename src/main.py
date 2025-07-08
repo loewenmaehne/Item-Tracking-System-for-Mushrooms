@@ -4,7 +4,7 @@ import time
 import re
 from collections import defaultdict
 
-# GDPR-compliant local data storage
+# Local data storage
 DB_NAME = "item_tracking.db"
 
 # Item Type Translation

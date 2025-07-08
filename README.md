@@ -1,5 +1,9 @@
+# Copyright (c) 2025 Julian Zienert
+# SPDX-License-Identifier: MIT
+
 Item Tracking System for Mushrooms
-Created with DeepSeek (https://deepseek.com).
+
+Code generated with assistance from DeepSeek-R1 AI (https://deepseek.com) (MIT License)
 
 ITEM TYPES (Barcode Prefixes):
 PiPi - PioPino
@@ -22,9 +26,9 @@ PYTHON SETUP (Windows):
    python --version
 
 USAGE:
-1. Place scanner.py in desired folder
+1. Place src/main.py in desired folder
 2. Open Command Prompt in that folder
-3. Run: python scanner.py
+3. Run: python main.py
 
 BASIC COMMANDS:
 1 - Check IN  2 - Check OUT
