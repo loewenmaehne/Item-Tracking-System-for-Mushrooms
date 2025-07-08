@@ -1,5 +1,5 @@
-Item Tracking System
-By DeepSeek
+Item Tracking System for Mushrooms
+Created with DeepSeek (https://deepseek.com).
 
 ITEM TYPES (Barcode Prefixes):
 PiPi - PioPino
@@ -13,7 +13,7 @@ StOr - Storage
 MiSc - Miscellaneous
 
 BARCODE FORMAT:
-Item: XXXX_DD_MM_YY_GX_XXXX (e.g. PiPi_01_05_24_G1_0001)
+Item: XXXX_DD_MM_YY_GX_XXXX (e.g. PiPi_08_07_25_G1_0001)
 
 PYTHON SETUP (Windows):
 1. Download Python 3 from python.org/downloads
@@ -33,4 +33,8 @@ BASIC COMMANDS:
 Type 'finish' to end scanning
 
 DATA:
-- Stores locally in item_tracking.db
+- Stores locally in item_tracking.db. Keep backuping this file!
+
+
+DISCLAIMER: The author shall not be held liable for any damages or misuse of this software.  
+Use at your own risk.  
