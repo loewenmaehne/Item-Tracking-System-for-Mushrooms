@@ -7,15 +7,15 @@
 ## 📦 Item Types (Barcode Prefixes)
 | Prefix | Mushroom Variety |
 |--------|------------------|
-| PiPi   | PioPino          |
-| ChNu   | Chestnut         |
-| KiOy   | KingOyster       |
-| BlOy   | BlueOyster       |
-| PiOy   | PinkOyster       |
-| LiMa   | Lionsmane        |
-| InVe   | Inventory        |
-| StOr   | Storage          |
-| MiSc   | Miscellaneous    |
+| PIPI   | PioPino          |
+| CHNU   | Chestnut         |
+| KIOY   | KingOyster       |
+| BLOY   | BlueOyster       |
+| PIOY   | PinkOyster       |
+| LIMA   | Lionsmane        |
+| INVE   | Inventory        |
+| StOR   | Storage          |
+| MISC   | Miscellaneous    |
 
 ## 🔖 Barcode Format
 **Standard Format:**  
