@@ -423,7 +423,7 @@ def generate_inventory_report():
     finally:
         conn.close()
 
-def generate_detailed_report(item_type=None, generation=None, location_barcode=None):
+def generate_detailed_report(item_type=None, generation=None, location_barcode=None, date=None):
     """Generate detailed report with filtering options - shows latest status per item"""
     conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
@@ -475,6 +475,9 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
             
             conditions.append("l.location_name = ?")
             params.append(loc_name)
+        if date:
+            conditions.append("i.created_date = ?")
+            params.append(date)
         
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
@@ -492,6 +495,8 @@ def generate_detailed_report(item_type=None, generation=None, location_barcode=N
             print(f"Filter: Generation = {generation}")
         if location_barcode:
             print(f"Filter: Location = {loc_name}")
+        if date:
+            print(f"Filter: Created Date = {date}")
         print("="*120)
         print(f"{'Scan Time':<19} {'Type':<12} {'Gen':<5} {'Status':<8} {'Create Date':<12} {'Location':<15} {'Barcode':<20} {'Note':<30}")
         print("-"*120)
@@ -715,7 +720,7 @@ def scan_session(status):
 
 def move_item_session():
     """Move items to new location using single DB connection"""
-    print("\nMOVE ITEM MODE - Scan items (type 'finish' to exit)")
+    print("\nMOVE ITEMS MODE - Scan items (type 'finish' to exit)")
     print("First scan TARGET location barcode (e.g. 'GROWTENT1')")
     
     # Scan target location
@@ -899,9 +904,9 @@ def main():
         print("\n" + "="*30)
         print("ITEM TRACKING SYSTEM")
         print("="*30)
-        print("1: Check in item (IN)")
-        print("2: Check out item (OUT)")
-        print("3: Move item")
+        print("1: Check in items (IN)")
+        print("2: Check out items (OUT)")
+        print("3: Move items")
         print("4: Register location")
         print("5: Show detailed report")
         print("6: Add/edit note")
@@ -924,10 +929,12 @@ def main():
             i_type = input("Item type: ").strip()
             gen = input("Generation: ").strip()
             loc = input("Location barcode: ").strip()
+            date_filter = input("Created date (DD.MM.YYYY): ").strip()
             generate_detailed_report(
                 i_type if i_type else None,
                 gen if gen else None,
-                loc if loc else None
+                loc if loc else None,
+                date_filter if date_filter else None
             )
         elif choice == "6":
             add_note_to_barcode()
